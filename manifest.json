@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Kintara Boost",
+  "version": "1.0.0",
+  "description": "Performance optimizer for Kintara.gg / Kintara.com — lighter, cooler, smoother.",
+  "permissions": ["storage", "tabs", "scripting", "activeTab", "clipboardWrite"],
+  "host_permissions": [
+    "*://kintara.gg/*",
+    "*://www.kintara.gg/*",
+    "*://kintara.com/*",
+    "*://www.kintara.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Kintara Boost",
+    "default_icon": {
+      "16":  "icon/icon16_performance.png",
+      "48":  "icon/icon48_performance.png",
+      "128": "icon/icon128_performance.png"
+    }
+  },
+  "icons": {
+    "16":  "icon/icon16_performance.png",
+    "48":  "icon/icon48_performance.png",
+    "128": "icon/icon128_performance.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://kintara.gg/*",
+        "*://www.kintara.gg/*",
+        "*://kintara.com/*",
+        "*://www.kintara.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
