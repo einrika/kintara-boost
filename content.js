@@ -78,21 +78,72 @@
   applyFilter(cfg.filter);
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 3. ZOOM
+  // 3. ZOOM — Camera zoom via synthetic WheelEvent on the game canvas
+  //    (CSS zoom on <html> scaled the entire browser viewport — wrong approach)
   // ════════════════════════════════════════════════════════════════════════════
-  function applyZoom(zoom) {
-    const ID = 'kboost-zoom';
-    let el = document.getElementById(ID);
-    const z = Math.round(Math.max(0.5, Math.min(2.0, zoom || 1.0)) * 100) / 100;
-    if (z === 1) { if (el) el.remove(); return; }
-    if (!el) {
-      el = document.createElement('style');
-      el.id = ID;
-      (document.head || document.documentElement).appendChild(el);
-    }
-    el.textContent = `html { zoom: ${z}; }`;
+  let   _zoomStepsApplied    = 0;
+  const _ZOOM_STEP_SIZE      = 0.1;   // must match popup.js ZOOM_STEP
+  const _WHEEL_DELTA_PER_STEP = 120;  // one standard mouse-wheel notch
+
+  function _getGameCanvas() {
+    // Pick the largest canvas — that's the Three.js render target
+    const all = Array.from(document.querySelectorAll('canvas'));
+    return all.sort((a, b) =>
+      (b.offsetWidth * b.offsetHeight) - (a.offsetWidth * a.offsetHeight)
+    )[0] || null;
   }
-  applyZoom(cfg.zoom);
+
+  function _dispatchCameraSteps(stepDelta) {
+    const canvas = _getGameCanvas();
+    if (!canvas) return false;
+    const r  = canvas.getBoundingClientRect();
+    const cx = r.left + r.width  / 2;
+    const cy = r.top  + r.height / 2;
+    // positive stepDelta = zoom in = scroll up = negative deltaY
+    const deltaY = stepDelta > 0 ? -_WHEEL_DELTA_PER_STEP : _WHEEL_DELTA_PER_STEP;
+    const count  = Math.abs(stepDelta);
+    for (let i = 0; i < count; i++) {
+      canvas.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true, cancelable: true, view: window,
+        deltaY, deltaMode: 0,
+        clientX: cx, clientY: cy,
+      }));
+    }
+    return true;
+  }
+
+  function applyZoom(zoom) {
+    const z = Math.round(Math.max(0.5, Math.min(2.0, zoom || 1.0)) * 100) / 100;
+    const targetSteps = Math.round((z - 1.0) / _ZOOM_STEP_SIZE);
+    const delta = targetSteps - _zoomStepsApplied;
+    if (delta === 0) return;
+
+    if (_dispatchCameraSteps(delta)) {
+      _zoomStepsApplied = targetSteps;
+      return;
+    }
+    // Canvas not ready yet — retry every 500ms, up to 15 seconds
+    let retries = 30;
+    const timer = setInterval(() => {
+      if (_dispatchCameraSteps(delta)) {
+        _zoomStepsApplied = targetSteps;
+        clearInterval(timer);
+      } else if (--retries <= 0) {
+        clearInterval(timer);
+      }
+    }, 500);
+  }
+
+  // Defer initial zoom until the game has had time to attach its event listeners.
+  // document_start fires long before Three.js OrbitControls is ready.
+  if (cfg.zoom !== 1.0) {
+    const _applyInitialZoom = () => setTimeout(() => applyZoom(cfg.zoom), 2500);
+    if (document.readyState === 'complete') {
+      _applyInitialZoom();
+    } else {
+      window.addEventListener('load', _applyInitialZoom, { once: true });
+    }
+  }
 
   // ════════════════════════════════════════════════════════════════════════════
   // 4. DPR LOCK
